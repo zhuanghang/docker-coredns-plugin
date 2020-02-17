@@ -17,11 +17,8 @@ import (
 
 var pluginName = "docker"
 
-// Define log to be a logger with the plugin name in it. This way we can just use log.Info and
-// friends to log.
 var log = clog.NewWithPlugin(pluginName)
 var p *Plugin
-// init registers this plugin.
 func init() { plugin.Register(pluginName, setup) }
 
 // setup is the function that gets called when the config parser see the token "example". Setup is responsible
@@ -34,29 +31,11 @@ func setup(c *caddy.Controller) error {
 		// can present a slightly nicer error message to the user.
 		return plugin.Error(pluginName, c.ArgErr())
 	}
-	log.Info("docker version: 0.1.4")
 	if p == nil {
 		p = NewPlugin()
 		p.init()
 		go p.handleEvent()
 	}
-	//c.OnStartup(func() error {
-	//	//1. start docker client and read container info
-	//	//2. launch goroutine for docker event handling
-	//	log.Info("OnStartup")
-	//	p = NewPlugin()
-	//	p.init()
-	//	go p.handleEvent()
-	//	log.Info("OnStartup end")
-	//	return nil
-	//})
-
-	//c.OnShutdown(func() error {
-	//	log.Info("OnShutdown")
-	//	p.close()
-	//	log.Info("OnShutdown end")
-	//	return nil
-	//})
 
 	// Add the Plugin to CoreDNS, so Servers can use it in their plugin chain.
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
@@ -77,13 +56,11 @@ type Docker struct {
 func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
 	name := strings.Trim(state.QName(), ".")
-	log.Debug(name, " Received: QName", state.QName(), " Name:", state.Name())
 	ip := e.Plugin.getIP(name)
-	log.Debug("Resolve:", ip.String())
 	if ip == nil {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
-
+	log.Debugf("docker resolved: %s %s", name, ip.String())
 	resp := new(dns.Msg)
 	resp.SetReply(r)
 	resp.Authoritative = true
