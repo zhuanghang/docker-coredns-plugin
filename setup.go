@@ -65,17 +65,11 @@ type Docker struct {
 // ServeDNS implements the plugin.Handler interface. This method gets called when example is used
 // in a Server.
 func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	log.Info("Received:", r.String())
-
 	state := request.Request{W: w, Req: r}
-	name := state.Name()
-	var ip net.IP
-	if name != "my.io" {
-		ip = e.Plugin.getIP(name)
-	} else {
-		ip = net.IPv4(127,0,0,1)
-	}
-
+	name := state.QName()
+	log.Debug("Received:", name)
+	ip := e.Plugin.getIP(name)
+	log.Debug("Resolve:", ip.String())
 	if ip == nil {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
