@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/miekg/dns"
 	"net"
+	"strings"
 )
 
 var pluginName = "docker"
@@ -33,28 +34,32 @@ func setup(c *caddy.Controller) error {
 		// can present a slightly nicer error message to the user.
 		return plugin.Error(pluginName, c.ArgErr())
 	}
-	log.Info("docker version: 0.1.3")
-	c.OnStartup(func() error {
-		//1. start docker client and read container info
-		//2. launch goroutine for docker event handling
-		log.Info("OnStartup")
+	log.Info("docker version: 0.1.4")
+	if p == nil {
 		p = NewPlugin()
 		p.init()
 		go p.handleEvent()
-		log.Info("OnStartup end")
-		return nil
-	})
+	}
+	//c.OnStartup(func() error {
+	//	//1. start docker client and read container info
+	//	//2. launch goroutine for docker event handling
+	//	log.Info("OnStartup")
+	//	p = NewPlugin()
+	//	p.init()
+	//	go p.handleEvent()
+	//	log.Info("OnStartup end")
+	//	return nil
+	//})
 
-	c.OnShutdown(func() error {
-		log.Info("OnShutdown")
-		p.close()
-		log.Info("OnShutdown end")
-		return nil
-	})
+	//c.OnShutdown(func() error {
+	//	log.Info("OnShutdown")
+	//	p.close()
+	//	log.Info("OnShutdown end")
+	//	return nil
+	//})
 
 	// Add the Plugin to CoreDNS, so Servers can use it in their plugin chain.
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		log.Info("addPlugin")
 		return &Docker{Next: next, Plugin:p}
 	})
 
@@ -71,8 +76,8 @@ type Docker struct {
 // in a Server.
 func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
-	name := state.QName()
-	log.Debug("Received:", name)
+	name := strings.Trim(state.QName(), ".")
+	log.Debug(name, " Received: QName", state.QName(), " Name:", state.Name())
 	ip := e.Plugin.getIP(name)
 	log.Debug("Resolve:", ip.String())
 	if ip == nil {
