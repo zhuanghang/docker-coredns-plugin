@@ -37,14 +37,18 @@ func setup(c *caddy.Controller) error {
 	c.OnStartup(func() error {
 		//1. start docker client and read container info
 		//2. launch goroutine for docker event handling
+		log.Info("OnStartup")
 		p = NewPlugin()
 		p.init()
 		go p.handleEvent()
+		log.Info("OnStartup end")
 		return nil
 	})
 
 	c.OnShutdown(func() error {
+		log.Info("OnShutdown")
 		p.close()
+		log.Info("OnShutdown end")
 		return nil
 	})
 
