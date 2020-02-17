@@ -1,4 +1,4 @@
-module redgex-coredns-plugin
+module docker
 
 go 1.13
 
