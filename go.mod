@@ -1,4 +1,4 @@
-module docker
+module github.com/feiyanke/docker-coredns-plugin
 
 go 1.13
 
