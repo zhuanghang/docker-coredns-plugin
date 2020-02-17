@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/caddyserver/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
@@ -67,16 +65,9 @@ type Docker struct {
 // ServeDNS implements the plugin.Handler interface. This method gets called when example is used
 // in a Server.
 func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	// This function could be simpler. I.e. just fmt.Println("example") here, but we want to show
-	// a slightly more complex example as to make this more interesting.
-	// Here we wrap the dns.ResponseWriter in a new ResponseWriter and call the next plugin, when the
-	// answer comes back, it will print "example".
 	log.Info("Received:", r.String())
 
 	state := request.Request{W: w, Req: r}
-	//if state.QClass() != dns.ClassCHAOS || state.QType() != dns.TypeTXT {
-	//	return plugin.NextOrFailure(c.Name(), c.Next, ctx, w, r)
-	//}
 	name := state.Name()
 	var ip net.IP
 	if name != "my.io" {
@@ -133,28 +124,31 @@ func (p *Plugin) init() {
 
 	for _, container := range containers {
 		p.cacheStart(container.ID)
-		//name, ip := p.getHostnameAndIP(container.ID)
-		//if len(name) != 0 && ip != nil {
-		//	p.Map[name] = ip
-		//}
 	}
 }
 
+//find hostname from Label: hostname
 func (p *Plugin) getHostnameAndIP(containerId string) (string, net.IP) {
 	info, _ := p.Docker.ContainerInspect(p.Ctx, containerId)
-	return info.Config.Hostname, net.ParseIP(info.NetworkSettings.IPAddress)
+	ip := net.ParseIP(info.NetworkSettings.IPAddress)
+	hostname := info.Config.Labels["hostname"]
+	return hostname, ip
 }
 
 func (p *Plugin) cacheStart(containerId string) {
 	name, ip := p.getHostnameAndIP(containerId)
 	if len(name) != 0 && ip != nil {
 		p.Map[name] = ip
+		log.Info("cache:", name, ip)
 	}
 }
 
 func (p *Plugin) cacheStop(containerId string) {
 	name, _ := p.getHostnameAndIP(containerId)
-	delete(p.Map, name)
+	if len(name) != 0 {
+		delete(p.Map, name)
+		log.Info("remove cache:", name)
+	}
 }
 
 func (p *Plugin) getIP(name string) net.IP {
@@ -165,10 +159,8 @@ func (p *Plugin) handleEvent() {
 	args := filters.NewArgs()
 	args.Add("event", "start")
 	args.Add("event", "stop")
-	events, _ := p.Docker.Events(p.Ctx, types.EventsOptions {})
+	events, _ := p.Docker.Events(p.Ctx, types.EventsOptions {Filters: args})
 	for x := range events{
-		str, _ := json.Marshal(x)
-		fmt.Println(string(str))
 		switch x.Action {
 		case "start":
 			p.cacheStart(x.Actor.ID)
