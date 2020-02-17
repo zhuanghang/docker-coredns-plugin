@@ -33,7 +33,7 @@ func setup(c *caddy.Controller) error {
 		// can present a slightly nicer error message to the user.
 		return plugin.Error(pluginName, c.ArgErr())
 	}
-
+	log.Info("docker version: 0.1.3")
 	c.OnStartup(func() error {
 		//1. start docker client and read container info
 		//2. launch goroutine for docker event handling
@@ -54,6 +54,7 @@ func setup(c *caddy.Controller) error {
 
 	// Add the Plugin to CoreDNS, so Servers can use it in their plugin chain.
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
+		log.Info("addPlugin")
 		return &Docker{Next: next, Plugin:p}
 	})
 
