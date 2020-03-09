@@ -132,7 +132,7 @@ func (p *Plugin) cacheStop(containerId string) {
 	name, ip := p.getHostnameAndIP(containerId)
 	if len(name) != 0 {
 		p.Map.Remove(name, ip.String())
-		log.Info("remove cache:", name)
+		log.Infof("remove cache: %s %s", name, ip.String())
 	}
 }
 
