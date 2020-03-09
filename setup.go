@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/jwangsadinata/go-multimap/setmultimap"
 	"github.com/miekg/dns"
 	"net"
 	"strings"
@@ -56,17 +57,19 @@ type Docker struct {
 func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
 	name := strings.Trim(state.QName(), ".")
-	ip := e.Plugin.getIP(name)
-	if ip == nil {
+	ips, exist := e.Plugin.Map.Get(name)
+	if !exist || ips == nil || len(ips) == 0 {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
-	log.Debugf("docker resolved: %s %s", name, ip.String())
+	log.Debugf("docker resolved: %s", name)
 	resp := new(dns.Msg)
 	resp.SetReply(r)
 	resp.Authoritative = true
 	hdr := dns.RR_Header{Name: state.QName(), Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 10}
-	record := dns.A{Hdr: hdr, A: ip}
-	resp.Answer = append(resp.Answer, &record)
+	for _, ip := range ips {
+		record := dns.A{Hdr: hdr, A: net.ParseIP(ip.(string))}
+		resp.Answer = append(resp.Answer, &record)
+	}
 	err := w.WriteMsg(resp)
 	if err != nil {
 		log.Error(err)
@@ -80,7 +83,7 @@ func (e *Docker) Name() string { return pluginName }
 type Plugin struct {
 	Docker *client.Client
 	Ctx context.Context
-	Map map[string]net.IP
+	Map *setmultimap.MultiMap
 }
 
 func NewPlugin() *Plugin {
@@ -92,7 +95,7 @@ func NewPlugin() *Plugin {
 	return &Plugin{
 		Docker:cli,
 		Ctx:ctx,
-		Map: make(map[string]net.IP),
+		Map: setmultimap.New(),
 	}
 }
 
@@ -119,22 +122,22 @@ func (p *Plugin) getHostnameAndIP(containerId string) (string, net.IP) {
 func (p *Plugin) cacheStart(containerId string) {
 	name, ip := p.getHostnameAndIP(containerId)
 	if len(name) != 0 && ip != nil {
-		p.Map[name] = ip
+		p.Map.Put(name, ip.String())
 		log.Info("cache:", name, ip)
 	}
 }
 
 func (p *Plugin) cacheStop(containerId string) {
-	name, _ := p.getHostnameAndIP(containerId)
+	name, ip := p.getHostnameAndIP(containerId)
 	if len(name) != 0 {
-		delete(p.Map, name)
+		p.Map.Remove(name, ip.String())
 		log.Info("remove cache:", name)
 	}
 }
 
-func (p *Plugin) getIP(name string) net.IP {
-	return p.Map[name]
-}
+//func (p *Plugin) getIPs(name string) map[string]bool {
+//	return p.Map.Get(name)
+//}
 
 func (p *Plugin) handleEvent() {
 	args := filters.NewArgs()
