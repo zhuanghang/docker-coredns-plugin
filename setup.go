@@ -61,7 +61,6 @@ func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	if !exist || ips == nil || len(ips) == 0 {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
-	log.Debugf("docker resolved: %s", name)
 	resp := new(dns.Msg)
 	resp.SetReply(r)
 	resp.Authoritative = true
@@ -69,10 +68,12 @@ func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	for _, ip := range ips {
 		record := dns.A{Hdr: hdr, A: net.ParseIP(ip.(string))}
 		resp.Answer = append(resp.Answer, &record)
+		log.Debugf("docker resolved: %s %s", name, ip)
 	}
 	err := w.WriteMsg(resp)
 	if err != nil {
 		log.Error(err)
+		return dns.RcodeServerFailure, err
 	}
 	return dns.RcodeSuccess, nil
 }
