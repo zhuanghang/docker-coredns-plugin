@@ -85,6 +85,7 @@ type Plugin struct {
 	Docker *client.Client
 	Ctx context.Context
 	Map *setmultimap.MultiMap
+	IdMap map[string]string
 }
 
 func NewPlugin() *Plugin {
@@ -97,6 +98,7 @@ func NewPlugin() *Plugin {
 		Docker:cli,
 		Ctx:ctx,
 		Map: setmultimap.New(),
+		IdMap: make(map[string]string),
 	}
 }
 
@@ -122,17 +124,21 @@ func (p *Plugin) getHostnameAndIP(containerId string) (string, net.IP) {
 
 func (p *Plugin) cacheStart(containerId string) {
 	name, ip := p.getHostnameAndIP(containerId)
+	ipstr := ip.String()
 	if len(name) != 0 && ip != nil {
-		p.Map.Put(name, ip.String())
-		log.Info("cache:", name, ip)
+		p.Map.Put(name, ipstr)
+		p.IdMap[containerId] = ipstr
+		log.Info("cache:", name, ipstr)
 	}
 }
 
 func (p *Plugin) cacheStop(containerId string) {
-	name, ip := p.getHostnameAndIP(containerId)
+	name, _ := p.getHostnameAndIP(containerId)
+	ipstr := p.IdMap[containerId]
 	if len(name) != 0 {
-		p.Map.Remove(name, ip.String())
-		log.Infof("remove cache: %s %s", name, ip.String())
+		p.Map.Remove(name, ipstr)
+		delete(p.IdMap, containerId)
+		log.Infof("remove cache: %s %s", name, ipstr)
 	}
 }
 
