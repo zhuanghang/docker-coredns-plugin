@@ -58,6 +58,7 @@ func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	state := request.Request{W: w, Req: r}
 	name := strings.Trim(state.QName(), ".")
 	ips, exist := e.Plugin.Map.Get(name)
+	log.Debugf("docker resolved: %s %v", name, ips)
 	if !exist || ips == nil || len(ips) == 0 {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
@@ -68,7 +69,6 @@ func (e *Docker) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	for _, ip := range ips {
 		record := dns.A{Hdr: hdr, A: net.ParseIP(ip.(string))}
 		resp.Answer = append(resp.Answer, &record)
-		log.Debugf("docker resolved: %s %s", name, ip)
 	}
 	err := w.WriteMsg(resp)
 	if err != nil {
